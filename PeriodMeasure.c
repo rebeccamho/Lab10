@@ -1,9 +1,10 @@
 // PeriodMeasure.c
 // Runs on LM4F120/TM4C123
-// Use Timer0A in 24-bit edge time mode to request interrupts on the rising
-// edge of PB6 (T0CCP0), and measure period between pulses.
+// Use Timer0A and B in 24-bit edge time mode to request interrupts on the rising
+// edge of PB7 (T0CCP1), and measure period between pulses.
 // Daniel Valvano
 // May 5, 2015
+// edited by Rebecca Ho and Matt Owens April 11, 2017
 
 /* This example accompanies the book
    "Embedded Systems: Real Time Interfacing to Arm Cortex M Microcontrollers",
@@ -24,10 +25,11 @@
 
 // external signal connected to PB6 (T0CCP0) (trigger on rising edge)
 #include <stdint.h>
-#include "../inc/tm4c123gh6pm.h"
+#include "../ValvanoWareTM4C123/ValvanoWareTM4C123/inc/tm4c123gh6pm.h"
 #include "PLL.h"
 
 #define NVIC_EN0_INT19          0x00080000  // Interrupt 19 enable
+#define PF1             (*((volatile uint32_t *)0x40025008))
 #define PF2                     (*((volatile uint32_t *)0x40025010))
 #define TIMER_TAMR_TACMR        0x00000004  // GPTM TimerA Capture Mode
 #define TIMER_TAMR_TAMR_CAP     0x00000003  // Capture mode
@@ -35,12 +37,13 @@
 #define TIMER_CTL_TAEVENT_POS   0x00000000  // Positive edge
 #define TIMER_CTL_TAEVENT_NEG   0x00000004  // Negative edge
 #define TIMER_CTL_TAEVENT_BOTH  0x0000000C  // Both edges
-#define TIMER_IMR_CAEIM         0x00000004  // GPTM CaptureA Event Interrupt
+#define TIMER0B_IMR_CAEIM         0x00000040  // GPTM CaptureB Event Interrupt
                                             // Mask
-#define TIMER_ICR_CAECINT       0x00000004  // GPTM CaptureA Event Interrupt
+#define TIMER0B_ICR_CAECINT       0x00000040  // GPTM CaptureB Event Interrupt
                                             // Clear
 #define TIMER_TAILR_TAILRL_M    0x0000FFFF  // GPTM TimerA Interval Load
                                             // Register Low
+#define F100HZ 80000000/100
 
 void DisableInterrupts(void); // Disable interrupts
 void EnableInterrupts(void);  // Enable interrupts
@@ -51,57 +54,71 @@ void WaitForInterrupt(void);  // low power mode
 uint32_t Period;              // (1/clock) units
 uint32_t First;               // Timer0A first edge
 int32_t Done;                 // set each rising
+uint32_t Speed;								// 0.1 rps
+uint32_t Count;
+
 // max period is (2^24-1)*12.5ns = 209.7151ms
 // min period determined by time to run ISR, which is about 1us
 void PeriodMeasure_Init(void){
-  SYSCTL_RCGCTIMER_R |= 0x01;// activate timer0    
-  SYSCTL_RCGCGPIO_R |= 0x22;       // activate port B and port F
-                                   // allow time to finish activating
-  First = 0;                       // first will be wrong
-  Done = 0;                        // set on subsequent
-  GPIO_PORTB_DIR_R &= ~0x40;       // make PB6 in
-  GPIO_PORTB_AFSEL_R |= 0x40;      // enable alt funct on PB6/T0CCP0
-  GPIO_PORTB_DEN_R |= 0x40;        // enable digital I/O on PB6
-                                   // configure PB6 as T0CCP0
-  GPIO_PORTB_PCTL_R = (GPIO_PORTB_PCTL_R&0xF0FFFFFF)+0x07000000;
-  GPIO_PORTB_AMSEL_R &= ~0x40;     // disable analog functionality on PB6
-  GPIO_PORTF_DIR_R |= 0x04;        // make PF2 out (PF2 built-in blue LED)
-  GPIO_PORTF_AFSEL_R &= ~0x04;     // disable alt funct on PF2
-  GPIO_PORTF_DEN_R |= 0x04;        // enable digital I/O on PF2
-                                   // configure PF2 as GPIO
-  GPIO_PORTF_PCTL_R = (GPIO_PORTF_PCTL_R&0xFFFFF0FF)+0x00000000;
-  GPIO_PORTF_AMSEL_R = 0;          // disable analog functionality on PF
-  TIMER0_CTL_R &= ~TIMER_CTL_TAEN; // disable timer0A during setup
-  TIMER0_CFG_R = TIMER_CFG_16_BIT; // configure for 16-bit timer mode
-                                   // configure for 24-bit capture mode
-  TIMER0_TAMR_R = (TIMER_TAMR_TACMR|TIMER_TAMR_TAMR_CAP);
-                                   // configure for rising edge event
-  TIMER0_CTL_R &= ~(TIMER_CTL_TAEVENT_POS|0xC);
-  TIMER0_TAILR_R = TIMER_TAILR_TAILRL_M;// start value
-  TIMER0_TAPR_R = 0xFF;            // activate prescale, creating 24-bit
-  TIMER0_IMR_R |= TIMER_IMR_CAEIM; // enable capture match interrupt
-  TIMER0_ICR_R = TIMER_ICR_CAECINT;// clear timer0A capture match flag
-  TIMER0_CTL_R |= TIMER_CTL_TAEN;  // enable timer0A 16-b, +edge timing, interrupts
-                                   // Timer0A=priority 2
-  NVIC_PRI4_R = (NVIC_PRI4_R&0x00FFFFFF)|0x40000000; // top 3 bits
-  NVIC_EN0_R = NVIC_EN0_INT19;     // enable interrupt 19 in NVIC
+  long sr = StartCritical(); 
+  SYSCTL_RCGCTIMER_R |= 0x01;     // activate timer0
+  SYSCTL_RCGCGPIO_R |= 0x02;      // activate port B
+	First = 0;
+  Done = 0;
+	Count = 0;
+  GPIO_PORTB_DIR_R &= ~0x80;      // make PB7 input
+  GPIO_PORTB_DEN_R |= 0x80;       // enable digital PB7
+  GPIO_PORTB_AFSEL_R |= 0x80;     // enable alt funct on PB7
+  GPIO_PORTB_PCTL_R = (GPIO_PORTB_PCTL_R&0x0FFFFFFF)+0x70000000;
+  TIMER0_CTL_R = 0x00000000;      // disable TIMER0A TIMER0B during setup
+  TIMER0_CFG_R = 0x00000004;      // configure for 16-bit mode
+  TIMER0_TAMR_R = 0x00000002;     // configure for periodic mode, default down-count settings
+  TIMER0_TAILR_R = F100HZ;        // reload value 100 Hz
+  TIMER0_TAPR_R = 79;             // 1us resolution
+  TIMER0_TBMR_R = 0x00000003;     // edge count mode
+  // bits 11-10 are 0 for rising edge counting on PB7
+  TIMER0_TBILR_R = 0xFFFFFFFF;    // start value
+  TIMER0_TBPR_R = 0xFF;           // activate prescale, creating 24-bit 
+  //TIMER0_IMR_R &= ~0x700;         // disable all interrupts for timer0B
+  TIMER0_IMR_R |= TIMER0B_IMR_CAEIM;						// enable input capture interrupts for timer0B
+	TIMER0_ICR_R |= (0x00000001|TIMER0B_ICR_CAECINT);      // clear TIMER0A-B timeout flags
+  TIMER0_IMR_R = (0x00000001|TIMER0B_IMR_CAEIM);      // arm timeout interrupt for timer 0A, enable input capture for timer0B
+	// interrupts enabled in the main program after all devices initialized
+	// timer0a vector number 35, interrupt number 19
+  NVIC_PRI4_R = (NVIC_PRI4_R&0x00FFFFFF)|0x80000000; // timer0A priority 4
+	NVIC_EN0_R = 1<<19;             // enable IRQ 19 in NVIC
+	// timer 0b vector number 36, interrupt number 20
+	NVIC_PRI5_R = (NVIC_PRI5_R&0xFFFFFF00)|0x00000040; // timer0B priority 3
+	NVIC_EN0_R = 1<<20;							// enable IRQ 20 in NVIC
+  TIMER0_CTL_R |= 0x00000101;     // enable TIMER0A TIMER0B
+  EndCritical(sr);
 }
 void Timer0A_Handler(void){
   PF2 = PF2^0x04;  // toggle PF2
   PF2 = PF2^0x04;  // toggle PF2
-  TIMER0_ICR_R = TIMER_ICR_CAECINT;// acknowledge timer0A capture match
-  Period = (First - TIMER0_TAR_R)&0xFFFFFF;// 24 bits, 12.5ns resolution
-  First = TIMER0_TAR_R;            // setup for next
-  Done = 1;
+  TIMER0_ICR_R |= 0x00000001;      // acknowledge timer0A timeout
+	Count++;
+	long sr = StartCritical();
+  if(Count <= 3 && (Period > 200000) && (Period < 2000000)) { // 10rps < period < 100rps
+		Speed = 200000000/Period; // 0.1 rps
+		Count = 0;
+	} else { // motor is off
+		Speed = 0;
+	}
+  EndCritical(sr);
+  
   PF2 = PF2^0x04;  // toggle PF2
 }
 
-//debug code
-int main(void){           
-  PLL_Init(Bus80MHz);              // 80 MHz clock
-  PeriodMeasure_Init();            // initialize 24-bit timer0A in capture mode
-  EnableInterrupts();
-  while(1){
-    WaitForInterrupt();
-  }
+void Timer0B_Handler(void) {
+	PF1 ^= 0x02;
+	PF1 ^= 0x02;
+	TIMER0_ICR_R |= TIMER0B_ICR_CAECINT;	// acknoledge timer0b timeout
+	Done = 0;
+	Count = 0;
+	Period = (First - TIMER0_TBR_R)&0xFFFFFF; // 24 bits, 12.5ns resolution
+	First = TIMER0_TBR_R; // setup for next
+	Done = 1;
+	
+	PF1 ^= 0x02;
 }
