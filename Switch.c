@@ -10,12 +10,6 @@
 
 #define PF1             (*((volatile uint32_t *)0x40025008))
 #define PF2             (*((volatile uint32_t *)0x40025010))
-#define PF3							(*((volatile uint32_t *)0x40025020))
-#define PF4   					(*((volatile uint32_t *)0x40025040))
-	
-bool PlayPressed = false;
-bool RewindPressed = false;
-bool ModePressed = false;
 
 void PortF_Init() {
 	SYSCTL_RCGCGPIO_R |= 0x20;            // activate port F clock
@@ -73,7 +67,6 @@ void ResetSwitches() {
 }
 
 void CheckSwitches() {
-
 
 }
 
