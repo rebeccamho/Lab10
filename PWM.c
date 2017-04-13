@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 #include "../ValvanoWareTM4C123/ValvanoWareTM4C123/inc/tm4c123gh6pm.h"
+#include "ST7735.h"
 
 #define PWM_0_GENA_ACTCMPAD_ONE 0x000000C0  // Set the output signal to 1
 #define PWM_0_GENA_ACTLOAD_ZERO 0x00000008  // Set the output signal to 0
@@ -26,8 +27,9 @@
 void PWM0_Init(uint16_t period, uint16_t duty){
   SYSCTL_RCGCPWM_R |= 0x01;             // 1) activate PWM0
 	// port B activated in PeriodMeasure_Init
-  //SYSCTL_RCGCGPIO_R |= 0x02;            // 2) activate port B
-  //while((SYSCTL_PRGPIO_R&0x02) == 0){};
+  SYSCTL_RCGCGPIO_R |= 0x02;            // 2) activate port B
+  while((SYSCTL_PRGPIO_R&0x02) == 0){};
+	
   GPIO_PORTB_AFSEL_R |= 0x40;           // enable alt funct on PB6
   GPIO_PORTB_PCTL_R &= ~0x0F000000;     // configure PB6 as PWM0
   GPIO_PORTB_PCTL_R |= 0x04000000;

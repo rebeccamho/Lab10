@@ -9,3 +9,5 @@
 // duty is number of PWM clock cycles output is high  (2<=duty<=period-1)
 // Output: none
 void PWM0_Init(uint16_t period, uint16_t duty);
+
+void PWM0_Duty(uint16_t duty);
