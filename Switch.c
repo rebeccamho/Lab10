@@ -7,9 +7,16 @@
 #include <stdbool.h>
 #include "../ValvanoWareTM4C123/ValvanoWareTM4C123/inc/tm4c123gh6pm.h"
 #include "SysTick.h"
+#include "PeriodMeasure.h"
+#include "PWM.h"
 
 #define PF1             (*((volatile uint32_t *)0x40025008))
 #define PF2             (*((volatile uint32_t *)0x40025010))
+
+uint16_t DutyArray[5] = {50000,51000,52000,56000,59000};
+	// values correspond to speeds ranging from 18-26 rps, incremented by 2
+uint32_t SpeedArray[5] = {180,200,220,240,260};
+uint16_t Current = 0;
 
 void PortF_Init() {
 	SYSCTL_RCGCGPIO_R |= 0x20;            // activate port F clock
@@ -39,7 +46,7 @@ void PortE_Init() { // switches are connected to PortE
 	GPIO_PORTE_PDR_R |= 0x30;			// enable pull down resistors on PE5-4 
 	GPIO_PORTE_ICR_R = 0x30;			// clear flag5-4
 	GPIO_PORTE_IM_R |= 0x30;			// arm interrupts on PE5-4
-	NVIC_PRI1_R = (NVIC_PRI1_R&0xFFFFFF00)|0x00000080;	// PortE=priority 3
+	NVIC_PRI1_R = (NVIC_PRI1_R&0xFFFFFF00)|0x00000020;	// PortE=priority 1
 	NVIC_EN0_R = 1<<4; 	// enable interrupt 4 in NVIC
 }
 
@@ -48,7 +55,12 @@ void GPIOPortE_Handler(void) {
 		GPIO_PORTE_ICR_R = 0x10;		// acknowledge flag4
 		SysTick_Wait10ms(10);
 		if(GPIO_PORTE_DATA_R&0x10) {
-			// set flag
+			PF2 ^= 0x04;
+			if(Current < 5) { // can go up in speed
+				Current++;
+				SetDesiredSpeed(SpeedArray[Current]);
+				PWM0_Duty(DutyArray[Current]);
+			}		
 		}
 
 	}
@@ -56,7 +68,12 @@ void GPIOPortE_Handler(void) {
 		GPIO_PORTE_ICR_R = 0x20;		// acknowledge flag5
 		SysTick_Wait10ms(10);
 		if(GPIO_PORTE_DATA_R&0x20) {
-			// set flag
+			PF1 ^= 0x02;
+			if(Current > 0) { // can go down in speed
+				Current = Current - 1;
+				SetDesiredSpeed(SpeedArray[Current]);
+				PWM0_Duty(DutyArray[Current]);
+			}
 		}
 	}
 }

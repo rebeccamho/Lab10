@@ -13,7 +13,7 @@ void PeriodMeasure_Init(uint32_t);
 // the pointer if there is
 // Input: none
 // Output: true if a new value was assigned, false otherwise
-bool CheckIfNewSpeed(uint32_t*,uint16_t*);
+bool CheckIfNewSpeed(uint32_t* speed,uint16_t* duty,uint32_t* desired_speed);
 
 void SetDesiredSpeed(uint32_t);
 
