@@ -68,9 +68,6 @@ int main(void){
     WaitForInterrupt();
 		
 		if(CheckIfNewSpeed(&speed,&duty,&desired_speed)) { // new speed value was returned		
-			//ST7735_OutUDec(speed);
-			//ST7735_sDecOut1(speed);
-			//ST7735_SetCursor(0,0); 
 			ST7735_PlotPointWithColor(desired_speed, ST7735_BLUE);  // Measured speed
 			ST7735_PlotPointWithColor(speed, ST7735_BLACK);  // Measured speed
 			if((j&(N-1))==0){          // fs sampling, fs/N samples plotted per second

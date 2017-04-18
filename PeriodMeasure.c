@@ -117,8 +117,8 @@ void PeriodMeasure_Init(uint32_t period){
 
 
 void Timer1A_Handler(void){
-	//PF2 = PF2^0x04;  // toggle PF2
-  //PF2 = PF2^0x04;  // toggle PF2
+	PF2 = PF2^0x04;  // toggle PF2
+  PF2 = PF2^0x04;  // toggle PF2
   TIMER1_ICR_R = TIMER_ICR_TATOCINT;// acknowledge TIMER1A timeout
 	
 	Count++;
@@ -133,19 +133,19 @@ void Timer1A_Handler(void){
 	
 	NewSpeed = true;
   
-  //PF2 = PF2^0x04;  // toggle PF2
+  PF2 = PF2^0x04;  // toggle PF2
 }
 
 void Timer0B_Handler(void) {
-	//PF1 ^= 0x02;
-	//PF1 ^= 0x02;
+	PF1 ^= 0x02;
+	PF1 ^= 0x02;
 	TIMER0_ICR_R |= TIMER0B_ICR_CAECINT;	// acknoledge timer0b timeout
 	
 	Count = 0;
 	Period = (First - TIMER0_TBR_R)&0xFFFFFF; // 24 bits, 12.5ns resolution
 	First = TIMER0_TBR_R; // setup for next
 	
-	//PF1 ^= 0x02;
+	PF1 ^= 0x02;
 }
 
 bool CheckIfNewSpeed(uint32_t* speed, uint16_t* duty, uint32_t* desired_speed) {
@@ -154,9 +154,9 @@ bool CheckIfNewSpeed(uint32_t* speed, uint16_t* duty, uint32_t* desired_speed) {
 		*speed = Speed;		
 		*desired_speed = DesiredSpeed;
 		E = DesiredSpeed - Speed;
-		//U = U*100 + (3*E)*100/64;
-		//U = U/100;
-		U = U + E;
+		U = U*100 + (3*E)*100/64;
+		U = U/100;
+		//U = U + E;
 		if(U < 30000) { U = 30000; }
 		if(U > 60000) { U = 60000; }
 		PWM0_Duty(U);		

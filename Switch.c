@@ -55,8 +55,8 @@ void GPIOPortE_Handler(void) {
 		GPIO_PORTE_ICR_R = 0x10;		// acknowledge flag4
 		SysTick_Wait10ms(10);
 		if(GPIO_PORTE_DATA_R&0x10) {
-			PF2 ^= 0x04;
-			if(Current < 5) { // can go up in speed
+			//PF2 ^= 0x04;
+			if(Current < 4) { // can go up in speed
 				Current++;
 				SetDesiredSpeed(SpeedArray[Current]);
 				PWM0_Duty(DutyArray[Current]);
@@ -68,7 +68,7 @@ void GPIOPortE_Handler(void) {
 		GPIO_PORTE_ICR_R = 0x20;		// acknowledge flag5
 		SysTick_Wait10ms(10);
 		if(GPIO_PORTE_DATA_R&0x20) {
-			PF1 ^= 0x02;
+			//PF1 ^= 0x02;
 			if(Current > 0) { // can go down in speed
 				Current = Current - 1;
 				SetDesiredSpeed(SpeedArray[Current]);
